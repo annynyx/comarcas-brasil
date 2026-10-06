@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mapa base do Brasil</title>
+    <meta name="description" content="Estados, comarcas, municípios, cidades, relevo e temperatura do Brasil, prontos para uso." />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="painel" aria-label="Controles do mapa">
+        <header>
+          <h1>Mapa base do Brasil</h1>
+          <p class="sub">Escolha o recorte, a métrica e o fundo.</p>
+        </header>
+
+        <fieldset>
+          <legend>Recorte</legend>
+          <div id="camadas" class="opcoes"></div>
+          <label class="check"><input type="checkbox" id="contorno-ufs" checked /> Contorno dos estados</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Colorir por</legend>
+          <select id="metrica" aria-label="Métrica"></select>
+          <div id="legenda" class="legenda" aria-live="polite"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Fundo</legend>
+          <div id="fundos" class="opcoes"></div>
+          <div id="legenda-fundo" class="legenda"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Cidades</legend>
+          <label class="check"><input type="checkbox" id="cidades" /> Mostrar sedes municipais</label>
+          <label class="check"><input type="checkbox" id="so-sedes-comarca" disabled /> Só sedes de comarca</label>
+        </fieldset>
+
+        <section id="detalhe" class="detalhe" hidden aria-live="polite"></section>
+
+        <details id="tabela-bloco">
+          <summary>Ver como tabela</summary>
+          <div id="tabela" class="tabela"></div>
+        </details>
+      </aside>
+      <main class="mapa-area">
+        <div id="mapa" class="mapa" role="region" aria-label="Mapa"></div>
+        <div id="dica" class="dica" hidden></div>
+        <div id="aviso" class="aviso" hidden></div>
+      </main>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

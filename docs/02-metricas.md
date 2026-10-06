@@ -1,8 +1,10 @@
 # 02 — Métricas de qualidade e indicadores
 
-> **Status:** proposta em discussão (fase 0 — definição).
+> **Status:** em uso. `make qualidade` mede automaticamente A1, A2–A5, A7–A10, B1,
+> B3, B4, B5, C1, C2 e D3 e grava `dist/relatorio_qualidade.md`. As demais são
+> conferências manuais ou de CI (fase 3).
 > Os valores-alvo marcados com *(ajustar)* são palpites iniciais e devem ser
-> calibrados quando o piloto rodar com dados reais.
+> calibrados quando o pipeline rodar com a malha oficial.
 
 Este documento responde a duas perguntas diferentes:
 
@@ -38,6 +40,11 @@ Este documento responde a duas perguntas diferentes:
 | B5 | Comarcas não contíguas (pedaços separados) | **Toda ocorrência revisada** | Contar partes do multipolígono. Ilhas são legítimas; municípios "soltos" costumam indicar erro na tabela. |
 | B6 | Deslocamento máximo da borda após simplificação (distância de Hausdorff) | resolução **média ≤ 200 m**, **baixa ≤ 2 km** *(ajustar)* | Comparar com a resolução total. |
 
+> **B3 na prática:** no teste de fumaça com um espelho não oficial da malha, B3 acusou
+> 26% de desvio no RJ. A causa eram polígonos com anéis invertidos no arquivo de origem,
+> que distorciam a área calculada para ele. É exatamente o tipo de problema que essa
+> métrica existe para pegar.
+
 > **Por que B5 é tão útil?** Uma comarca formada por municípios que não se tocam quase
 > sempre significa que alguém digitou o código errado na tabela. É um detector de erro
 > de digitação "de graça".
@@ -46,8 +53,8 @@ Este documento responde a duas perguntas diferentes:
 
 | # | Métrica | Meta | Como medir |
 |---|---|---|---|
-| C1 | Tamanho de `comarcas_baixa.geojson` (comprimido gzip) | ≤ **1 MB** *(ajustar)* | Relatório do build. |
-| C2 | Tamanho de `brasil_media.topojson` (gzip, 3 camadas) | ≤ **3 MB** *(ajustar)* | Relatório do build. |
+| C1 | Tamanho de `brasil_baixa.topojson` (todas as camadas, gzip) | ≤ **1 MB** *(ajustar)* | Relatório do build. |
+| C2 | Tamanho de `brasil_media.topojson` (todas as camadas, gzip) | ≤ **3 MB** *(ajustar)* | Relatório do build. |
 | C3 | Tempo até o mapa aparecer na demo (notebook comum, 4G) | ≤ **3 s** | Lighthouse / DevTools. |
 | C4 | Interação (passar o mouse, zoom, clique) | Sem travamento perceptível | DevTools → Performance. |
 | C5 | Funciona em celular (largura 360 px) | Sim | Teste manual + Playwright. |
@@ -74,6 +81,9 @@ cruzando pelo `codigo_ibge` (município) ou pelo `comarca_id`.
 | `populacao` | IBGE, Censo 2022 | **Soma** |
 | `densidade` (hab/km²) | Derivado | `populacao / area_km2` **depois** de somar |
 | `entrancia`, `tribunal` | TJ | Atributo da comarca |
+| `altitude_media`, `altitude_min`, `altitude_max` | Copernicus DEM | Calculada **direto no polígono** de cada camada (média ponderada pela fração de pixel coberta) |
+| `temperatura_media` | WorldClim 2.1 (BIO1, normal 1970–2000) | Idem |
+| `altitude_sede`, `temperatura_sede` (cidades) | Idem | Valor do pixel no ponto da sede |
 
 ### Regra de ouro da agregação (vale para qualquer dado que for cruzado depois)
 

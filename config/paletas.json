@@ -1,0 +1,6 @@
+{
+  "_comentario": "Rampas sequenciais de um só matiz (claro = pouco, escuro = muito). A azul é a rampa documentada do guia de visualização; laranja e vermelho foram geradas com a mesma luminosidade (OKLCH) de cada passo da azul.",
+  "metricas": ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"],
+  "relevo": ["#f9d7cb", "#efb19b", "#e28969", "#d45e2f", "#af4517", "#883008", "#611f02"],
+  "temperatura": ["#fad6d2", "#f1aea8", "#e4857e", "#d75853", "#b13f3c", "#892b2a", "#621b1a"]
+}

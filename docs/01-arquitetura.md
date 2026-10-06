@@ -1,7 +1,8 @@
 # 01 — Arquitetura e tecnologias
 
-> **Status:** proposta em discussão (fase 0 — definição).
-> Este documento registra *o que* vamos usar e, principalmente, *por quê*.
+> **Status:** fase 1 implementada (pipeline + visualizador). Faltam as tabelas de
+> comarcas de cada estado (fase 2).
+> Este documento registra *o que* usamos e, principalmente, *por quê*.
 > Quando uma decisão mudar, atualize este arquivo no mesmo commit da mudança.
 
 ## 1. Contexto: o problema real não é desenhar o mapa, é conseguir os dados
@@ -19,157 +20,199 @@
 
 > **Uma comarca é (quase sempre) a união de municípios inteiros.**
 
-Então não vamos desenhar fronteiras à mão. Vamos manter uma **tabela** dizendo a qual
-comarca cada município pertence e **calcular** o polígono de cada comarca juntando
-("dissolvendo") os polígonos oficiais dos municípios do IBGE.
+Então não desenhamos fronteiras à mão. Mantemos uma **tabela** dizendo a qual comarca
+cada município pertence e **calculamos** o polígono de cada comarca juntando
+("dissolvendo") os polígonos oficiais dos municípios do IBGE. A mesma ideia gera os
+estados, as regiões e o contorno do país.
 
-```mermaid
-flowchart LR
-    A["Malha municipal IBGE<br/>(polígonos oficiais)"] --> C
-    B["Tabela município → comarca<br/>(mantida por nós, 1 CSV por UF)"] --> C
-    C["Validar + juntar<br/>(Python / GeoPandas)"] --> D["Dissolver por comarca"]
-    D --> E["Simplificar sem abrir buracos<br/>(mapshaper)"]
-    E --> F["Arquivos de saída<br/>GeoJSON · TopoJSON · GeoPackage · GeoParquet · CSV"]
-    F --> G["Visualizador web<br/>(MapLibre GL JS)"]
-    F --> H["Uso em análise<br/>(Python, R, QGIS, BI)"]
-```
-
-Consequências dessa escolha:
+Consequências:
 
 1. **A fonte da verdade é uma tabela pequena e legível**, versionada no Git. Corrigir uma
    comarca = editar uma linha de CSV e abrir um pull request.
-2. **As bordas batem perfeitamente** com as dos municípios e estados, porque vêm da mesma
-   malha oficial.
-3. **Replicável:** qualquer pessoa regenera todo o mapa com um comando, a partir da malha
-   do IBGE + nossas tabelas.
+2. **As bordas batem perfeitamente** entre todas as camadas, porque vêm da mesma malha.
+3. **Replicável:** qualquer pessoa regenera todo o mapa com um comando.
 4. **Integração fácil com estatísticas:** quase todo dado público brasileiro tem o código
    IBGE do município, então ele "cai" automaticamente na comarca certa.
 
-## 2. Decisões de tecnologia
+## 2. Catálogo de mapas
+
+O projeto entrega dois tipos de mapa. Entender a diferença ajuda a escolher o certo:
+
+- **Vetor** = formas geométricas (polígonos e pontos) com atributos. Bom para *limites*
+  e para pintar áreas por um número (mapa coroplético).
+- **Raster** = grade de pixels, cada um com um valor. Bom para fenômenos *contínuos*
+  que não respeitam fronteiras, como altitude e temperatura.
+
+| Mapa | Tipo | Origem | Chave | Atributos principais |
+|---|---|---|---|---|
+| País | vetor (área) | dissolve de todos os municípios | `nome` | área, população, densidade |
+| Regiões | vetor (área) | dissolve pelo 1º dígito do código IBGE | `nome` | idem |
+| Estados (`ufs`) | vetor (área) | dissolve por UF | `uf` | idem + `tem_comarcas` |
+| Comarcas | vetor (área) | dissolve pela tabela município → comarca | `comarca_id` | nome, tribunal, entrância, sede, nº municípios, área, população |
+| Municípios | vetor (área) | malha municipal IBGE | `codigo_ibge` | UF, região, comarca, sede de comarca?, área, população |
+| Cidades | vetor (ponto) | sede de cada município | `codigo_ibge` | capital?, sede de comarca?, população |
+| Relevo | raster | Copernicus DEM GLO-90 | — | altitude (m) |
+| Temperatura | raster | WorldClim 2.1 (BIO1) | — | temperatura média anual (°C) |
+
+> **Município × cidade:** município é o *território* inteiro (polígono, inclui a zona
+> rural). Cidade, na definição do IBGE, é a *sede* urbana do município (um ponto).
+
+### Ligando raster e vetor: estatísticas por área
+
+Para usar relevo e temperatura como **métricas**, o pipeline calcula, para cada área
+(município, comarca, estado, região, país), a **altitude média, mínima e máxima** e a
+**temperatura média anual**. Para cada cidade, o valor no ponto da sede. Isso é feito
+com o `exactextract`, que pondera pixels parcialmente cobertos (importante para
+municípios menores que um pixel de temperatura).
+
+## 3. Fluxo do pipeline
+
+```mermaid
+flowchart LR
+    subgraph Fontes externas
+      A["Malha municipal IBGE"]
+      P["População — IBGE Censo 2022"]
+      C["Sedes municipais"]
+      R["Relevo — Copernicus"]
+      T["Temperatura — WorldClim"]
+    end
+    B["Tabelas município → comarca<br/>(dados/fontes/UF/, no Git)"]
+    A & P & B & C --> K["camadas<br/>validar + dissolver"]
+    K --> RS["rasters<br/>recortar para o Brasil"]
+    R & T --> RS
+    K & RS --> X["exportar<br/>estatísticas por área"]
+    X --> D["dist/<br/>GeoPackage · GeoParquet · CSV · GeoTIFF"]
+    X --> W["web<br/>mapshaper + imagens"]
+    W --> V["Visualizador MapLibre"]
+    D & W --> Q["qualidade<br/>relatório de métricas"]
+```
+
+| Etapa | Comando | O que faz |
+|---|---|---|
+| baixar | `make baixar` | Baixa as fontes para `dados/brutos/` e registra o hash de cada arquivo |
+| camadas | `make camadas` | Valida as tabelas de comarcas (para o build se houver erro) e monta as camadas vetoriais |
+| rasters | `make rasters` | Lê o relevo direto da nuvem em resolução reduzida e recorta relevo e temperatura para o Brasil |
+| exportar | `make exportar` | Calcula altitude/temperatura por área e grava os arquivos finais em `dist/` |
+| web | `make web` | Simplifica as camadas, gera imagens WebP e o `catalogo.json` do visualizador |
+| qualidade | `make qualidade` | Mede o resultado e escreve `dist/relatorio_qualidade.md` |
+
+Todas as URLs, anos e resoluções ficam em **`config/fontes.toml`**. Trocar a malha de 2024
+pela de 2025, por exemplo, é editar uma linha e rodar `make tudo`.
+
+## 4. Decisões de tecnologia
 
 | Camada | Escolha | Por quê | Alternativas descartadas (e motivo) |
 |---|---|---|---|
-| Linguagem do pipeline de dados | **Python 3.12+** | Ecossistema geoespacial mais maduro; mesma linguagem que muitos usuários de estatística já usam. | R/`geobr` (ótimo, mas menos comum para integração com sistemas); Node puro (fraco para validação de dados). |
-| Gerenciador de dependências Python | **uv** (com `uv.lock`) | Rápido e gera *lockfile*: todos instalam exatamente as mesmas versões → reprodutibilidade. | pip + requirements.txt (sem lock confiável); conda (pesado). |
-| Manipulação geoespacial | **GeoPandas + Shapely 2 + pyogrio** | Leitura do shapefile do IBGE, junção com a tabela, *dissolve* por comarca, validação de geometrias. | PostGIS (exige servidor de banco; desnecessário para um conjunto de dados estático). |
-| Simplificação e TopoJSON | **mapshaper** (CLI via npm) | Simplifica **preservando a topologia**: vizinhos continuam encostados, sem frestas nem sobreposição. Gera TopoJSON nativamente. | `simplify()` do GeoPandas (simplifica cada polígono isoladamente → abre frestas entre vizinhos). |
-| Orquestração | **Makefile** chamando scripts Python | Um comando (`make tudo`) refaz tudo; cada etapa pode ser rodada sozinha. | Airflow/Prefect (exagero para um pipeline linear). |
-| Testes e validação | **pytest** | As regras de qualidade (doc 02) viram testes automáticos. | — |
-| Visualizador web | **MapLibre GL JS + TypeScript + Vite** | Open source, sem chave de API, renderiza milhares de polígonos via WebGL, estilo guiado por dados (ideal para mapas coloridos por indicador), suporta PMTiles. | Leaflet (mais simples, porém mais lento com milhares de polígonos e sem estilo por dados nativo); Google Maps/Mapbox (pagos e com chave). |
-| Forma de integração do front | **Módulo TS independente de framework** (`criarMapaComarcas(elemento, opções)`) | Pode ser usado em HTML puro, React, Vue, Angular… sem amarrar o projeto a um framework. | Componente React (excluiria quem não usa React). |
-| Mapa de fundo | **Nenhum obrigatório** (fundo neutro + nossas próprias camadas) | Zero dependência externa e zero custo. Mapa de fundo (ex.: OpenFreeMap) fica opcional. | — |
-| Automação | **GitHub Actions** | Valida cada pull request; ao criar uma versão, gera os arquivos e publica. | — |
-| Distribuição | **GitHub Releases** (arquivos) + **GitHub Pages** (demo) | Gratuito e estático. Arquivos gerados grandes não entram no Git. | Servidor próprio (custo e manutenção). |
-| Tiles vetoriais (fase futura) | **PMTiles** gerado com **tippecanoe** | Um único arquivo estático com todos os níveis de zoom; só necessário quando quisermos detalhe máximo no zoom. | Servidor de tiles (custo e manutenção). |
+| Linguagem do pipeline | **Python 3.11+** | Ecossistema geoespacial mais maduro; mesma linguagem de muita gente de estatística. | R/`geobr` (ótimo, mas menos comum para integração); Node puro (fraco para validação de dados). |
+| Dependências Python | **uv** (com `uv.lock`) | Rápido e com *lockfile*: todos instalam exatamente as mesmas versões. | pip + requirements.txt (sem lock confiável); conda (pesado). |
+| Vetores | **GeoPandas + Shapely 2 + pyogrio** | Leitura do shapefile do IBGE, junção com tabelas, dissolve, validação. | PostGIS (exige servidor; desnecessário para dados estáticos). |
+| Rasters | **rasterio** (GDAL) + **NumPy** | Leitura remota de GeoTIFF otimizado para nuvem, reprojeção, recorte. | — |
+| Estatísticas por área | **exactextract** | Pondera a fração de cada pixel coberta pelo polígono. | rasterstats (ignora pixels parciais → municípios pequenos ficam sem valor). |
+| Simplificação e TopoJSON | **mapshaper** (npm) | Simplifica **todas as camadas juntas preservando a topologia**: vizinhos continuam encostados. | `simplify()` do GeoPandas (simplifica cada polígono isoladamente → abre frestas). |
+| Orquestração | **Makefile** + `python -m pipeline` | Um comando refaz tudo; cada etapa pode rodar sozinha. | Airflow/Prefect (exagero para um pipeline linear). |
+| Testes | **pytest** com dados sintéticos | Roda o pipeline inteiro sem internet, em segundos. | — |
+| Visualizador | **MapLibre GL JS + TypeScript + Vite** | Open source, sem chave de API, WebGL, estilo guiado por dados. | Leaflet (mais lento com milhares de polígonos); Google Maps/Mapbox (pagos). |
+| Integração do front | **Módulo `MapaBrasil` independente de framework** | Funciona em HTML puro, React, Vue, Angular… | Componente React (excluiria quem não usa React). |
+| Mapa de fundo | **Nenhum obrigatório** | Zero dependência externa e zero custo. | — |
+| Cores | Rampas sequenciais de **um só matiz** (`config/paletas.json`) | Claro = pouco, escuro = muito; legível por daltônicos; sem arco-íris. | Paleta arco-íris (cria fronteiras falsas e é ilegível para daltônicos). |
 
-> **Por que começar sem PMTiles?** Com ~2.600 comarcas e ~5.570 municípios, uma
-> versão simplificada em GeoJSON/TopoJSON tem poucos MB e o MapLibre carrega direto.
-> PMTiles adiciona uma ferramenta compilada (tippecanoe) que só se paga quando
-> precisarmos de bordas em resolução total no navegador.
+### Por que relevo do Copernicus lido "direto da nuvem"?
 
-## 3. Arquivos que o projeto vai entregar
+Os blocos do Copernicus são **COGs** (*Cloud Optimized GeoTIFF*): cada arquivo traz,
+dentro dele, versões reduzidas da imagem ("overviews"). Quando pedimos uma grade pequena,
+o GDAL baixa **só os bytes da versão reduzida**. Resultado: o relevo do Brasil inteiro
+(816 blocos de 1°×1°) a ~1 km/pixel sai em cerca de 30 segundos, sem baixar os vários GB
+da resolução total.
+
+### Por que começar sem PMTiles?
+
+Com ~5.570 municípios, a versão simplificada em TopoJSON tem cerca de 1 MB comprimido e o
+MapLibre carrega direto. PMTiles (tiles vetoriais num arquivo único) só se paga quando
+quisermos bordas em resolução total no navegador.
+
+## 5. Arquivos entregues
 
 | Arquivo | Para quem | Resolução |
 |---|---|---|
-| `municipio_comarca.csv` | Qualquer pessoa que queira cruzar dados por município (Excel, BI, SQL) | — (só tabela) |
-| `comarcas.gpkg` (GeoPackage) | QGIS / ArcGIS / analistas GIS | Total (igual ao IBGE) |
-| `comarcas.parquet` (GeoParquet) | Análise de dados (pandas, DuckDB, BigQuery) | Total |
-| `comarcas_<resolucao>.geojson` | Uso universal na web | Média e baixa |
-| `brasil_<resolucao>.topojson` (camadas: UFs, comarcas, municípios) | Web/D3: menor tamanho e bordas compartilhadas | Média e baixa |
+| `dist/tabelas/municipio_comarca.csv` | Quem quer cruzar dados por município (Excel, BI, SQL) | — |
+| `dist/tabelas/<camada>.csv` | Atributos de cada camada, sem geometria | — |
+| `dist/brasil.gpkg` (GeoPackage, uma camada por mapa) | QGIS / ArcGIS | Total (igual ao IBGE) |
+| `dist/parquet/<camada>.parquet` (GeoParquet) | pandas, DuckDB, BigQuery | Total |
+| `dist/rasters/relevo.tif`, `temperatura_media_anual.tif` | GIS, análise | ~1 km e ~9 km |
+| `dist/web/<resolucao>/<camada>.geojson` | Uso universal na web | Média (~250 m) e baixa (~2,5 km) |
+| `dist/web/brasil_<resolucao>.topojson` | Web/D3: todas as camadas num arquivo, bordas compartilhadas | Média e baixa |
+| `dist/web/relevo.webp`, `temperatura.webp` + `catalogo.json` | Visualizador | Imagens em Web Mercator |
 
 Por que **GeoPackage** e não **shapefile**? O shapefile limita nomes de colunas a 10
-caracteres, tem problemas de acentuação e é composto de vários arquivos soltos. O
-GeoPackage é um arquivo único, padrão aberto (OGC), e abre em qualquer software GIS.
+caracteres, tem problemas de acentuação e é composto de vários arquivos soltos.
 
-## 4. Sistemas de coordenadas
+## 6. Sistemas de coordenadas
 
 | Uso | Sistema | Observação |
 |---|---|---|
-| Dados de origem (IBGE) | SIRGAS 2000 (EPSG:4674) | Sistema geodésico oficial do Brasil. |
-| Arquivos para web (GeoJSON/TopoJSON) | WGS 84 (EPSG:4326) | Exigido pelo padrão GeoJSON (RFC 7946). A diferença para o SIRGAS 2000 é desprezível na escala do mapa. |
-| Cálculo de área | **Não calculamos**: somamos a área oficial que o IBGE publica para cada município | Evita divergência com o número oficial. Se um dia for preciso medir área, usar projeção de **áreas iguais** (Albers), nunca graus. |
+| Dados de origem e `dist/` | SIRGAS 2000 (EPSG:4674) | Sistema geodésico oficial do Brasil. |
+| Web e rasters | WGS 84 (EPSG:4326) | Exigido pelo GeoJSON (RFC 7946). Diferença desprezível para o SIRGAS 2000. |
+| Imagens do visualizador | Web Mercator (EPSG:3857) | Projeção dos mapas da web; a imagem precisa estar nela para alinhar com os vetores. |
+| Medir área | Albers do IBGE (`ALBERS_BRASIL` em `pipeline/config.py`) | Projeção de **áreas iguais**. Nunca medir área em graus. |
+| Área oficial | Soma do `AREA_KM2` do IBGE | Evita divergência com o número oficial. |
 
-## 5. Modelo de dados
+## 7. Modelo de dados das comarcas
 
-### 5.1 Fontes mantidas por nós (`dados/fontes/<UF>/`)
+Detalhado em [`dados/fontes/README.md`](../dados/fontes/README.md). Resumo:
 
-Um par de arquivos por estado, para facilitar revisão e colaboração por TJ.
+- `dados/fontes/<UF>/comarcas.csv`: `comarca_id` (= código IBGE da sede), `nome`, `uf`,
+  `tribunal`, `entrancia`, `fonte`, `data_verificacao`.
+- `dados/fontes/<UF>/municipios.csv`: `codigo_ibge`, `municipio`, `comarca_id`.
 
-`comarcas.csv`
+**Por que o código IBGE da sede como `comarca_id`?** Já existe, é estável, é único (cada
+comarca tem uma sede e um município sedia no máximo uma comarca — o pipeline testa isso) e
+qualquer pessoa consegue cruzá-lo com outras bases.
 
-| Coluna | Exemplo | Regra |
-|---|---|---|
-| `comarca_id` | `3106200` | = código IBGE (7 dígitos) do município-sede. Único. |
-| `nome` | `Belo Horizonte` | Nome oficial usado pelo TJ. |
-| `uf` | `MG` | |
-| `tribunal` | `TJMG` | |
-| `entrancia` | `especial` | Valor como o TJ escreve (cada estado usa uma classificação). |
-| `fonte` | URL ou "LC estadual nº X/AAAA, anexo Y" | Obrigatório. |
-| `data_verificacao` | `2026-10-06` | Obrigatório (AAAA-MM-DD). |
-
-`municipios.csv`
-
-| Coluna | Exemplo | Regra |
-|---|---|---|
-| `codigo_ibge` | `3106200` | Deve existir na malha IBGE do ano de referência. Aparece uma única vez no país. |
-| `municipio` | `Belo Horizonte` | Só para leitura humana; conferido contra o IBGE. |
-| `comarca_id` | `3106200` | Deve existir em `comarcas.csv`. |
-
-**Por que usar o código IBGE da sede como `comarca_id`?** Ele já existe, é estável, é
-único (cada comarca tem uma sede e um município sedia no máximo uma comarca — hipótese
-que o pipeline vai testar) e qualquer pessoa consegue cruzá-lo com outras bases.
-
-### 5.2 Atributos das camadas geradas
-
-- **comarcas:** `comarca_id`, `nome`, `uf`, `tribunal`, `entrancia`, `sede_ibge`,
-  `n_municipios`, `area_km2`, `populacao`, `data_referencia`.
-- **municipios:** `codigo_ibge`, `nome`, `uf`, `comarca_id`, `e_sede`.
-
-## 6. Estrutura de pastas proposta
+## 8. Estrutura de pastas
 
 ```
 comarcas-brasil/
+├── config/
+│   ├── fontes.toml         # URLs, anos e resoluções de todas as fontes
+│   └── paletas.json        # cores das métricas, do relevo e da temperatura
 ├── dados/
-│   ├── fontes/<UF>/        # tabelas mantidas à mão (fonte da verdade) — versionadas
-│   └── brutos/             # downloads do IBGE — fora do Git, regeneráveis
-├── pipeline/               # Python: baixar → validar → dissolver → simplificar → exportar
-├── tests/                  # regras de qualidade como testes (pytest)
-├── dist/                   # arquivos gerados — fora do Git, publicados em Releases
-├── web/                    # visualizador MapLibre + módulo reutilizável (TypeScript)
-├── docs/                   # decisões e documentação
-└── Makefile                # `make tudo` refaz tudo do zero
+│   ├── fontes/<UF>/        # tabelas de comarcas (fonte da verdade, no Git)
+│   ├── brutos/             # downloads (fora do Git)
+│   └── intermediario/      # entre etapas (fora do Git)
+├── pipeline/               # uma etapa por arquivo: baixar, camadas, rasters, exportar, web, qualidade
+├── tests/                  # pipeline inteiro sobre um "Brasil de mentira"
+├── dist/                   # arquivos finais (fora do Git; publicar em Releases)
+├── web/                    # visualizador: src/mapa-brasil.ts (módulo) + src/main.ts (demo)
+├── docs/
+└── Makefile
 ```
 
-## 7. Exceções conhecidas (a tratar caso a caso)
+## 9. Exceções conhecidas
 
-| Caso | Tratamento inicial |
+| Caso | Tratamento atual |
 |---|---|
-| **Distrito Federal**: o TJDFT se divide em *circunscrições* que seguem as Regiões Administrativas, ou seja, **dentro** de um único "município". | Fase 1: DF como um único polígono. Depois: usar limites das RAs (Geoportal do DF). |
-| **Foros regionais** em capitais (ex.: São Paulo, Rio de Janeiro): subdivisões dentro de uma comarca. | Não são comarcas. Podem virar uma camada opcional futura. |
-| **Polígonos especiais na malha IBGE** que não são municípios (ex.: Lagoa dos Patos e Lagoa Mirim, no RS). | Excluir das comarcas e listar no relatório de qualidade. |
-| Município cujo distrito pertence a outra comarca. | Raro. Se aparecer, usar a malha de distritos do IBGE para aquele caso. |
-| Agrupamentos acima da comarca (circunscrições, regiões judiciárias, polos). | Coluna opcional futura — útil para "divisão de territórios". |
+| **Distrito Federal**: o TJDFT se divide em *circunscrições* dentro de um único "município". | DF como um polígono. Depois: limites das Regiões Administrativas (Geoportal DF). |
+| **Foros regionais** em capitais. | Não são comarcas; camada opcional futura. |
+| **Polígonos que não são municípios** na malha (Lagoa dos Patos e Lagoa Mirim, RS). | Configurados em `nao_municipios`: entram no contorno do estado, não na camada de municípios. |
+| Município cujo distrito pertence a outra comarca. | Raro. Se aparecer, usar a malha de distritos do IBGE. |
+| Agrupamentos acima da comarca (circunscrições, regiões judiciárias). | Coluna opcional futura. |
 
-## 8. Riscos
+## 10. Riscos
 
-1. **Coleta de dados (maior risco e maior esforço):** 27 TJs, 27 formatos diferentes
-   (páginas web, PDFs de leis, planilhas). Mitigação: começar com um estado piloto,
-   usar bases existentes como ponto de partida (ex.: pacote `forosCNJ` da Associação
-   Brasileira de Jurimetria, que relaciona foros a códigos IBGE) e validar cada UF contra
-   a lista oficial do TJ.
-2. **Dados envelhecem:** comarcas são criadas, extintas e agregadas. Mitigação:
-   `data_verificacao` obrigatória, versões datadas (ex.: `v2026.10`) e re-verificação
-   periódica.
-3. **Acesso de rede:** o ambiente de nuvem atual bloqueia sites do IBGE e dos TJs; será
-   preciso liberar esses domínios ou baixar os arquivos localmente.
+1. **Coleta das tabelas de comarcas (maior esforço):** 27 TJs, 27 formatos. Mitigação:
+   estado piloto, ponto de partida no pacote `forosCNJ` (ABJ), validação automática.
+2. **Dados envelhecem:** `data_verificacao` obrigatória, aviso após 12 meses (A9).
+3. **Acesso de rede:** o ambiente de nuvem usado no desenvolvimento bloqueia IBGE,
+   WorldClim e sites dos TJs. Localmente não há esse problema.
+4. **Fonte das cidades:** coordenadas vêm de base comunitária (`kelvins/municipios-brasileiros`);
+   trocar por IBGE Localidades 2022 quando possível.
 
-## 9. Roteiro por fases
+## 11. Roteiro
 
-| Fase | Entrega | Critério de pronto |
+| Fase | Entrega | Situação |
 |---|---|---|
-| 0 — Definição | Este documento + métricas (doc 02) | Decisões aprovadas. |
-| 1 — Esqueleto + piloto | Pipeline completo rodando para **1 UF** | Métricas do doc 02 verdes para a UF piloto. |
-| 2 — Brasil inteiro | Tabelas das 27 UFs | Métricas verdes nacionalmente. |
-| 3 — Visualizador | Demo web + módulo reutilizável | Metas de desempenho do doc 02. |
-| 4 — Distribuição | Releases, GitHub Pages, CI | Build do zero em máquina limpa com um comando. |
-| 5 — Extensões | PMTiles, DF por RA, foros regionais, agrupamentos, histórico | Sob demanda. |
+| 0 — Definição | Este documento + métricas | ✅ |
+| 1 — Pipeline + visualizador | Todas as camadas, rasters, estatísticas, relatório, demo web | ✅ testado com dados sintéticos e teste de fumaça; falta rodar com a malha oficial |
+| 2 — Comarcas | Tabelas das 27 UFs, começando por um piloto | ⏳ |
+| 3 — Distribuição | GitHub Actions, Releases, GitHub Pages | ⏳ |
+| 4 — Extensões | PMTiles, DF por RA, foros regionais, histórico, precipitação | Sob demanda |

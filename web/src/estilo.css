@@ -1,0 +1,157 @@
+/* Cores como variáveis: o tema escuro troca tudo em um só lugar.
+   Valores do guia de visualização (superfície, tintas, linhas). */
+:root {
+  color-scheme: light;
+  --pagina: #f9f9f7;
+  --superficie: #fcfcfb;
+  --tinta: #0b0b0b;
+  --tinta-2: #52514e;
+  --tinta-3: #898781;
+  --borda: #c3c2b7;
+  --linha-fina: #e1e0d9;
+  --preenchimento: #f0efec;
+  --sem-dado: #e1e0d9;
+  --anel: rgba(11, 11, 11, 0.1);
+  --destaque: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --pagina: #0d0d0d;
+    --superficie: #1a1a19;
+    --tinta: #ffffff;
+    --tinta-2: #c3c2b7;
+    --tinta-3: #898781;
+    --borda: #52514e;
+    --linha-fina: #2c2c2a;
+    --preenchimento: #262624;
+    --sem-dado: #383835;
+    --anel: rgba(255, 255, 255, 0.1);
+    --destaque: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --pagina: #0d0d0d;
+  --superficie: #1a1a19;
+  --tinta: #ffffff;
+  --tinta-2: #c3c2b7;
+  --tinta-3: #898781;
+  --borda: #52514e;
+  --linha-fina: #2c2c2a;
+  --preenchimento: #262624;
+  --sem-dado: #383835;
+  --anel: rgba(255, 255, 255, 0.1);
+  --destaque: #3987e5;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--pagina);
+  color: var(--tinta);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.painel {
+  overflow-y: auto;
+  padding: 16px;
+  border-right: 1px solid var(--linha-fina);
+  background: var(--superficie);
+}
+.painel h1 { font-size: 18px; margin: 0; }
+.painel .sub { margin: 4px 0 12px; color: var(--tinta-2); }
+
+fieldset {
+  border: 0;
+  border-top: 1px solid var(--linha-fina);
+  margin: 0;
+  padding: 12px 0;
+}
+legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tinta-2);
+}
+.opcoes { display: grid; gap: 2px; margin-top: 4px; }
+.radio, .check { display: flex; gap: 8px; align-items: center; padding: 3px 0; cursor: pointer; }
+.check { margin-top: 4px; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--destaque); margin: 0; }
+select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--tinta);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+
+.legenda ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.legenda li { display: flex; gap: 8px; align-items: center; color: var(--tinta-2); font-variant-numeric: tabular-nums; }
+.amostra { width: 18px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--anel); flex: none; }
+.gradiente { height: 12px; border-radius: 3px; margin-top: 10px; box-shadow: inset 0 0 0 1px var(--anel); }
+.extremos { display: flex; justify-content: space-between; color: var(--tinta-2); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+.detalhe { border-top: 1px solid var(--linha-fina); padding: 12px 0; }
+.detalhe h2 { font-size: 16px; margin: 0 0 8px; }
+.detalhe table, .tabela table { width: 100%; border-collapse: collapse; }
+.detalhe th { text-align: left; font-weight: normal; color: var(--tinta-2); padding: 3px 8px 3px 0; vertical-align: top; }
+.detalhe td { text-align: right; padding: 3px 0; font-variant-numeric: tabular-nums; }
+
+details { border-top: 1px solid var(--linha-fina); padding: 12px 0; }
+summary { cursor: pointer; color: var(--tinta-2); }
+.tabela { max-height: 320px; overflow: auto; margin-top: 8px; }
+.tabela th { position: sticky; top: 0; background: var(--superficie); text-align: left; color: var(--tinta-2); font-weight: 600; padding: 4px; }
+.tabela td { padding: 3px 4px; border-top: 1px solid var(--linha-fina); }
+.tabela .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.mapa-area { position: relative; min-height: 0; }
+/* Seletor mais específico: o CSS do MapLibre define position: relative no contêiner */
+.mapa-area > .mapa { position: absolute; inset: 0; }
+
+.dica {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background: var(--superficie);
+  color: var(--tinta);
+  border-radius: 6px;
+  padding: 6px 10px;
+  box-shadow: 0 0 0 1px var(--anel), 0 4px 12px rgba(0, 0, 0, 0.12);
+  max-width: 260px;
+  z-index: 2;
+}
+.dica .valor { color: var(--tinta-2); font-variant-numeric: tabular-nums; }
+
+.aviso {
+  position: absolute;
+  inset: 16px 16px auto;
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: var(--superficie);
+  box-shadow: 0 0 0 1px var(--anel);
+}
+
+.maplibregl-ctrl-attrib { font-size: 11px; }
+.maplibregl-ctrl.maplibregl-ctrl-attrib { background: var(--superficie); color: var(--tinta-2); }
+.maplibregl-ctrl-attrib a { color: var(--tinta-2); }
+
+/* Celular: mapa em cima, controles embaixo */
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
+  .mapa-area { order: -1; height: 60vh; }
+  .painel { border-right: 0; border-top: 1px solid var(--linha-fina); overflow: visible; }
+}
