@@ -87,7 +87,9 @@ cruzando pelo `codigo_ibge` (município) ou pelo `comarca_id`.
 
 ### Regra de ouro da agregação (vale para qualquer dado que for cruzado depois)
 
-- **Contagens** (população, nº de processos, nº de habitantes) → **somar**.
+- **Contagens** (população, nº de processos, nº de habitantes) → **somar**. Se faltar o
+  valor de algum município, o total fica **sem dado** (o pipeline não trata ausência como
+  zero, porque isso subestimaria o total sem avisar).
 - **Taxas e médias** (renda per capita, IDH, taxa de congestionamento) → **nunca tirar a
   média simples** entre municípios. Ou recalcular a partir das contagens (numerador
   somado ÷ denominador somado), ou fazer **média ponderada** pela população.

@@ -17,6 +17,7 @@ import geopandas as gpd
 import pandas as pd
 
 COLUNAS_COMARCAS = ["comarca_id", "nome", "uf", "tribunal", "entrancia", "fonte", "data_verificacao"]
+COLUNAS_OPCIONAIS = ["observacao"]  # ex.: comarca criada por lei mas não instalada
 COLUNAS_MUNICIPIOS = ["codigo_ibge", "municipio", "comarca_id"]
 VALIDADE_DIAS = 365  # métrica A9
 
@@ -41,9 +42,12 @@ def ler_tabelas(pasta: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         comarcas.append(c.assign(pasta=pasta_uf.name))
         vinculos.append(m.assign(pasta=pasta_uf.name))
     if not comarcas:
-        return (pd.DataFrame(columns=COLUNAS_COMARCAS + ["pasta"]),
+        return (pd.DataFrame(columns=COLUNAS_COMARCAS + COLUNAS_OPCIONAIS + ["pasta"]),
                 pd.DataFrame(columns=COLUNAS_MUNICIPIOS + ["pasta"]))
-    return pd.concat(comarcas, ignore_index=True), pd.concat(vinculos, ignore_index=True)
+    juntas = pd.concat(comarcas, ignore_index=True)
+    for coluna in COLUNAS_OPCIONAIS:
+        juntas[coluna] = juntas.get(coluna, pd.Series(dtype=str)).fillna("")
+    return juntas, pd.concat(vinculos, ignore_index=True)
 
 
 def normalizar_nome(texto: str) -> str:
@@ -137,6 +141,15 @@ def validar(comarcas: pd.DataFrame, vinculos: pd.DataFrame, municipios_ibge: pd.
     return problemas
 
 
+def soma_estrita(valores: pd.Series) -> float:
+    """Soma que vira "sem dado" (NaN) se faltar qualquer parcela.
+
+    O `sum()` do pandas trata valor ausente como zero: uma comarca com um município sem
+    população apareceria com população menor do que a real, sem nenhum aviso.
+    """
+    return valores.sum() if valores.notna().all() else float("nan")
+
+
 def montar_camada(municipios: gpd.GeoDataFrame, comarcas: pd.DataFrame,
                   vinculos: pd.DataFrame) -> gpd.GeoDataFrame:
     """Dissolve os polígonos dos municípios de cada comarca num polígono só."""
@@ -144,14 +157,14 @@ def montar_camada(municipios: gpd.GeoDataFrame, comarcas: pd.DataFrame,
         columns={"comarca_id": "_comarca"}), on="codigo_ibge", how="inner")
     camada = base.dissolve(
         by="_comarca",
-        aggfunc={"area_km2": "sum", "populacao": "sum", "codigo_ibge": "count"},
+        aggfunc={"area_km2": "sum", "populacao": soma_estrita, "codigo_ibge": "count"},
     ).reset_index().rename(columns={"_comarca": "comarca_id", "codigo_ibge": "n_municipios"})
 
     nomes_sede = municipios.set_index("codigo_ibge")["nome"]
-    atributos = comarcas[["comarca_id", "nome", "uf", "tribunal", "entrancia", "data_verificacao"]]
+    atributos = comarcas[["comarca_id", "nome", "uf", "tribunal", "entrancia", "observacao", "data_verificacao"]]
     camada = camada.merge(atributos, on="comarca_id", how="left")
     camada["sede"] = camada.comarca_id.map(nomes_sede)
     camada["densidade"] = (camada.populacao / camada.area_km2).round(2)
     colunas = ["comarca_id", "nome", "uf", "tribunal", "entrancia", "sede", "n_municipios",
-               "area_km2", "populacao", "densidade", "data_verificacao", "geometry"]
+               "area_km2", "populacao", "densidade", "observacao", "data_verificacao", "geometry"]
     return camada[colunas]

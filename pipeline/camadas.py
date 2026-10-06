@@ -83,7 +83,7 @@ def ler_cidades(projeto: Projeto, municipios: gpd.GeoDataFrame) -> gpd.GeoDataFr
 def agregar(base: gpd.GeoDataFrame, chave: str) -> gpd.GeoDataFrame:
     """Dissolve por `chave`, somando área, população e nº de municípios."""
     camada = base.assign(n_municipios=base.e_municipio.astype(int)).dissolve(
-        by=chave, aggfunc={"area_km2": "sum", "populacao": "sum", "n_municipios": "sum"},
+        by=chave, aggfunc={"area_km2": "sum", "populacao": tab_comarcas.soma_estrita, "n_municipios": "sum"},
     ).reset_index()
     camada["densidade"] = (camada.populacao / camada.area_km2).round(2)
     return camada

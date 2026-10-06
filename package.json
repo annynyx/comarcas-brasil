@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Mapa base replicável do Brasil: país, regiões, estados, comarcas, municípios, cidades, relevo e temperatura.",
+  "license": "MIT",
   "scripts": {
     "predev": "node web/scripts/copiar-maplibre.mjs",
     "dev": "vite web",

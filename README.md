@@ -38,10 +38,11 @@ make testar       # testes automáticos (não usam internet)
 
 ## Situação
 
-- ✅ Pipeline completo, com 16 testes automáticos e relatório de qualidade.
+- ✅ Pipeline completo, com 19 testes automáticos e relatório de qualidade.
 - ✅ Visualizador web (claro/escuro, celular, tabela acessível).
-- ⏳ **Tabelas de comarcas:** ainda vazias. Enquanto um estado não tiver tabela, ele
-  aparece em cinza no mapa de comarcas. Veja [`dados/fontes/README.md`](dados/fontes/README.md).
+- 🟡 **Comarcas:** Roraima cadastrada (piloto: 8 comarcas, 15 municípios). Os demais
+  estados aparecem em cinza no mapa de comarcas até ganharem tabela. Veja
+  [`dados/fontes/README.md`](dados/fontes/README.md).
 - ⏳ Rodar com as fontes oficiais de IBGE e WorldClim (o ambiente de desenvolvimento não tinha acesso a esses sites; o relevo do Copernicus já foi testado de verdade).
 
 ## Documentação
@@ -62,3 +63,8 @@ make testar       # testes automáticos (não usam internet)
 - Relevo: Copernicus DEM GLO-90 — © DLR e.V. 2010-2014 e © Airbus Defence and Space GmbH 2014-2018, programa Copernicus (UE/ESA)
 - Temperatura: WorldClim 2.1 — Fick & Hijmans (2017), CC BY 4.0
 - Referência para conferência: CNJ, *Justiça em Números*
+
+## Licença
+
+Código: [MIT](LICENSE). Dados produzidos pelo projeto: [CC BY 4.0](LICENSE-DADOS.md),
+respeitando os termos das fontes de terceiros listadas acima.

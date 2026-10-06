@@ -13,7 +13,8 @@ const ROTULOS: Record<string, string> = {
   area_km2: "Área (km²)", populacao: "População (2022)", densidade: "Densidade (hab./km²)",
   altitude_media: "Altitude média (m)", altitude_min: "Altitude mínima (m)", altitude_max: "Altitude máxima (m)",
   altitude_sede: "Altitude da sede (m)", temperatura_media: "Temperatura média anual (°C)",
-  temperatura_sede: "Temperatura na sede (°C)", tem_comarcas: "Tabela de comarcas", data_verificacao: "Verificado em",
+  temperatura_sede: "Temperatura na sede (°C)", tem_comarcas: "Tabela de comarcas", observacao: "Observação",
+  data_verificacao: "Verificado em",
 };
 
 function valorLegivel(valor: unknown): string {
@@ -63,6 +64,9 @@ async function iniciar() {
     console.error(erro);
     return;
   }
+
+  // Disponível no console do navegador para explorar a API: mapaBrasil.enquadrar("ufs", "SP")
+  (window as unknown as { mapaBrasil: MapaBrasil }).mapaBrasil = mapa;
 
   // --- Recorte (camadas de área)
   const caixaCamadas = $("camadas");
@@ -144,10 +148,11 @@ async function iniciar() {
       return;
     }
     const linhas = Object.entries(info.propriedades)
-      .filter(([chave]) => chave in ROTULOS && chave !== "nome")
+      .filter(([chave]) => chave in ROTULOS && !["nome", "observacao"].includes(chave))
       .map(([chave, valor]) => `<tr><th>${ROTULOS[chave]}</th><td>${valorLegivel(valor)}</td></tr>`)
       .join("");
-    detalhe.innerHTML = `<h2>${titulo(info)}</h2><table>${linhas}</table>`;
+    const observacao = info.propriedades.observacao ? `<p class="obs">${info.propriedades.observacao}</p>` : "";
+    detalhe.innerHTML = `<h2>${titulo(info)}</h2><table>${linhas}</table>${observacao}`;
     detalhe.hidden = false;
   });
 
@@ -165,7 +170,7 @@ async function iniciar() {
   }
   blocoTabela.addEventListener("toggle", atualizarTabela);
 
-  // Estado inicial vindo da URL (ex.: ?camada=municipios&metrica=altitude_media&fundo=relevo)
+  // Estado inicial vindo da URL (ex.: ?camada=comarcas&uf=RR&metrica=altitude_media&fundo=relevo)
   preencherMetricas();
   const metricaInicial = parametros.get("metrica");
   if (metricaInicial && [...seletor.options].some((o) => o.value === metricaInicial)) seletor.value = metricaInicial;
@@ -177,6 +182,8 @@ async function iniciar() {
       radio.dispatchEvent(new Event("change", { bubbles: true }));
     }
   }
+  const uf = parametros.get("uf");
+  if (uf) mapa.enquadrar("ufs", uf.toUpperCase());
   if (parametros.get("cidades") === "1") {
     cidades.checked = true;
     atualizarCidades();

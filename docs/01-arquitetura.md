@@ -1,7 +1,7 @@
 # 01 — Arquitetura e tecnologias
 
-> **Status:** fase 1 implementada (pipeline + visualizador). Faltam as tabelas de
-> comarcas de cada estado (fase 2).
+> **Status:** fase 1 implementada (pipeline + visualizador). Fase 2 em andamento:
+> Roraima cadastrada como piloto.
 > Este documento registra *o que* usamos e, principalmente, *por quê*.
 > Quando uma decisão mudar, atualize este arquivo no mesmo commit da mudança.
 
@@ -161,7 +161,8 @@ caracteres, tem problemas de acentuação e é composto de vários arquivos solt
 Detalhado em [`dados/fontes/README.md`](../dados/fontes/README.md). Resumo:
 
 - `dados/fontes/<UF>/comarcas.csv`: `comarca_id` (= código IBGE da sede), `nome`, `uf`,
-  `tribunal`, `entrancia`, `fonte`, `data_verificacao`.
+  `tribunal`, `entrancia`, `fonte`, `data_verificacao` e, opcional, `observacao`.
+- `dados/fontes/<UF>/NOTAS.md`: fontes consultadas, decisões e pendências da UF.
 - `dados/fontes/<UF>/municipios.csv`: `codigo_ibge`, `municipio`, `comarca_id`.
 
 **Por que o código IBGE da sede como `comarca_id`?** Já existe, é estável, é único (cada
@@ -196,6 +197,7 @@ comarcas-brasil/
 | **Polígonos que não são municípios** na malha (Lagoa dos Patos e Lagoa Mirim, RS). | Configurados em `nao_municipios`: entram no contorno do estado, não na camada de municípios. |
 | Município cujo distrito pertence a outra comarca. | Raro. Se aparecer, usar a malha de distritos do IBGE. |
 | Agrupamentos acima da comarca (circunscrições, regiões judiciárias). | Coluna opcional futura. |
+| **Comarca criada por lei, mas não instalada** (ex.: Cantá/RR). | O mapa mostra a jurisdição em funcionamento; a existência legal vai em `observacao`. |
 
 ## 10. Riscos
 
@@ -213,6 +215,6 @@ comarcas-brasil/
 |---|---|---|
 | 0 — Definição | Este documento + métricas | ✅ |
 | 1 — Pipeline + visualizador | Todas as camadas, rasters, estatísticas, relatório, demo web | ✅ testado com dados sintéticos e teste de fumaça; falta rodar com a malha oficial |
-| 2 — Comarcas | Tabelas das 27 UFs, começando por um piloto | ⏳ |
+| 2 — Comarcas | Tabelas das 27 UFs, começando por um piloto | 🟡 Roraima cadastrada (piloto); 26 UFs pendentes |
 | 3 — Distribuição | GitHub Actions, Releases, GitHub Pages | ⏳ |
 | 4 — Extensões | PMTiles, DF por RA, foros regionais, histórico, precipitação | Sob demanda |

@@ -3,6 +3,7 @@ name = "comarcas-brasil"
 version = "0.1.0"
 description = "Mapa base replicável do Brasil: país, regiões, estados, comarcas, municípios, cidades, relevo e temperatura."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "geopandas>=1.0",

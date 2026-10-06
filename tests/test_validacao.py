@@ -6,7 +6,7 @@ from datetime import date
 
 import pandas as pd
 
-from pipeline.comarcas import normalizar_nome, validar
+from pipeline.comarcas import normalizar_nome, soma_estrita, validar
 
 IBGE = pd.DataFrame({
     "codigo_ibge": ["2800001", "2800002", "2800003", "2700001"],
@@ -81,3 +81,8 @@ def test_avisos_de_nome_e_de_verificacao_antiga():
 
 def test_normalizar_nome():
     assert normalizar_nome("Olho-d'Água das Flores") == normalizar_nome("OLHO D AGUA DAS FLORES")
+
+
+def test_soma_estrita_nao_esconde_valor_faltando():
+    assert soma_estrita(pd.Series([1.0, 2.0])) == 3.0
+    assert pd.isna(soma_estrita(pd.Series([1.0, None])))

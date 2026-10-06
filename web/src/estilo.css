@@ -109,6 +109,7 @@ select {
 .detalhe table, .tabela table { width: 100%; border-collapse: collapse; }
 .detalhe th { text-align: left; font-weight: normal; color: var(--tinta-2); padding: 3px 8px 3px 0; vertical-align: top; }
 .detalhe td { text-align: right; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.detalhe .obs { margin: 8px 0 0; color: var(--tinta-2); }
 
 details { border-top: 1px solid var(--linha-fina); padding: 12px 0; }
 summary { cursor: pointer; color: var(--tinta-2); }

@@ -360,6 +360,23 @@ export class MapaBrasil {
     this.colorirPor(this.metricaAtual);
   }
 
+  /** Aproxima o mapa para uma feição, ex.: enquadrar("ufs", "RR"). Retorna false se não achar. */
+  enquadrar(camada: string, id: string): boolean {
+    const chave = this.camada(camada)?.chave;
+    const alvo = chave && this.feicoes(camada).find((f) => String(f.properties[chave]) === id);
+    if (!alvo) return false;
+    let [oeste, sul, leste, norte] = [Infinity, Infinity, -Infinity, -Infinity];
+    const visitar = (c: unknown): void => {
+      if (typeof (c as number[])[0] === "number") {
+        const [x, y] = c as number[];
+        [oeste, sul, leste, norte] = [Math.min(oeste, x), Math.min(sul, y), Math.max(leste, x), Math.max(norte, y)];
+      } else (c as unknown[]).forEach(visitar);
+    };
+    visitar((alvo.geometry as GeoJSON.Polygon | GeoJSON.MultiPolygon).coordinates);
+    this.mapa.fitBounds([[oeste, sul], [leste, norte]], { padding: 32, duration: 0 });
+    return true;
+  }
+
   mostrarCidades(visivel: boolean, apenasSedesComarca = false): void {
     if (!this.mapa.getLayer("cidades")) return;
     this.exibir("cidades", visivel);
